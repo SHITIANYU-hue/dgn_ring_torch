@@ -71,7 +71,7 @@ Next_O = np.ones((batch_size,n_ant,observation_space))
 Matrix = np.ones((batch_size,n_ant,n_ant))
 Next_Matrix = np.ones((batch_size,n_ant,n_ant))
 
-
+save_interal=20
 rets = []
 mean_rets = []
 ret_lists = []
@@ -86,7 +86,8 @@ ploss=0
 qloss=0
 reg_loss=0
 results=[]
-
+scores=[]
+losses=[]
 ## save simulation videos
 def render(render_mode='sumo_gui'):
     from flow.core.params import SimParams as sim_params
@@ -172,10 +173,9 @@ if build_adj==3:
         return adj
 
 
-for i in range(num_runs):
-    vel = np.zeros(num_steps)
+for i_episode in range(num_runs):
     # logging.info("Iter #" + str(i))
-    print('episode is:',i)
+    print('episode is:',i_episode)
     ret = 0
     ret_list = []
     obs = env.reset()
@@ -183,7 +183,7 @@ for i in range(num_runs):
     aset = []
     vec = np.zeros((1, neighbors))
     vec[0][0] = 1
-    for  i_episode in range(num_steps):
+    for  j in range(num_steps):
         # manager actions
         # convert state into values
         state_ = np.array(list(obs.values())).reshape(agent_num,-1).tolist()
@@ -228,15 +228,19 @@ for i in range(num_runs):
         # print('reward',reward)
         
         score += sum(list(reward.values()))
+        
+        scores.append(score)
 
-
+        np.save('scores.npy',scores)
 
          ## calculate individual reward
         # for k in range(len(rewards)):
 
-    if i_episode%20==0:
+    if i_episode%save_interal==0:
             print(score/2000)
             score = 0
+            torch.save(model.state_dict(), f'model_{i_episode}')
+
 
     if i_episode < 100:
         continue
@@ -266,9 +270,12 @@ for i in range(num_runs):
                 expected_q[j][i][sample[1][i]] = sample[2] + (1-sample[6])*GAMMA*target_q_values[j][i] ## dimension problem 
         
         loss = (q_values - torch.Tensor(expected_q)).pow(2).mean()
+        losses.append(loss)
+        np.save('loss.npy',losses)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
 
     if i_episode%5 == 0:
         model_tar.load_state_dict(model.state_dict())
