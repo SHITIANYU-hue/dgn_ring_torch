@@ -229,9 +229,9 @@ for i_episode in range(num_runs):
         
         score += sum(list(reward.values()))
         
-        scores.append(score)
+    scores.append(score)
 
-        np.save('scores.npy',scores)
+    np.save('scores.npy',scores)
 
          ## calculate individual reward
         # for k in range(len(rewards)):
@@ -242,11 +242,10 @@ for i_episode in range(num_runs):
             torch.save(model.state_dict(), f'model_{i_episode}')
 
 
-    if i_episode < 100:
+    if i_episode < 5:
         continue
 
     for e in range(n_epoch):
-        
         batch = buff.getBatch(batch_size)
         for j in range(batch_size):
             sample = batch[j]
@@ -270,7 +269,9 @@ for i_episode in range(num_runs):
                 expected_q[j][i][sample[1][i]] = sample[2] + (1-sample[6])*GAMMA*target_q_values[j][i] ## dimension problem 
         
         loss = (q_values - torch.Tensor(expected_q)).pow(2).mean()
-        losses.append(loss)
+        print('loss',loss)
+        losses.append(loss.detach().numpy())
+        # print(losses)
         np.save('loss.npy',losses)
         optimizer.zero_grad()
         loss.backward()
