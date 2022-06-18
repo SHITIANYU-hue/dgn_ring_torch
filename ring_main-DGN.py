@@ -183,6 +183,7 @@ for i_episode in range(num_runs):
     aset = []
     vec = np.zeros((1, neighbors))
     vec[0][0] = 1
+    score=0
     for  j in range(num_steps):
         # manager actions
         # convert state into values
@@ -229,7 +230,8 @@ for i_episode in range(num_runs):
         
         score += sum(list(reward.values()))
         
-    scores.append(score)
+    scores.append(score/num_steps)
+
 
     np.save('scores.npy',scores)
 
