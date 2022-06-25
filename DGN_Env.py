@@ -34,7 +34,7 @@ from flow.envs.base import Env
 
 #flow/examples/exp_configs/rl/singleagent/
 
-def para_produce_rl(HORIZON = 3000,NUM_AUTOMATED = 4):
+def para_produce_rl(HORIZON = 3000, NUM_AUTOMATED = 4):
 	
     # time horizon of a single rollout
     HORIZON = 3000
@@ -44,7 +44,6 @@ def para_produce_rl(HORIZON = 3000,NUM_AUTOMATED = 4):
     N_CPUS = 2
     # number of automated vehicles. Must be less than or equal to 22.
     NUM_AUTOMATED = NUM_AUTOMATED
-
 
     # We evenly distribute the automated vehicles in the network.
     num_human = 22 - NUM_AUTOMATED
@@ -72,7 +71,6 @@ def para_produce_rl(HORIZON = 3000,NUM_AUTOMATED = 4):
             ),
             routing_controller=(ContinuousRouter, {}),
             num_vehicles=vehicles_to_add)
-
 
         flow_params = dict(
         # name of the experiment
@@ -126,6 +124,7 @@ def para_produce_rl(HORIZON = 3000,NUM_AUTOMATED = 4):
 
     flow_params['env'].horizon = HORIZON
     return flow_params
+
 
 #flow_params = para_produce(flow_rate=1000, scaling=1, disable_tb=True, disable_ramp_meter=True)
 flow_params = para_produce_rl()
