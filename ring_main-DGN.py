@@ -6,7 +6,7 @@ from flow.core.params import TrafficLightParams
 import pandas as pd
 from flow.controllers import SimLaneChangeController, ContinuousRouter
 from flow.core.experiment import Experiment
-from DGN_Env import para_produce_rl,Experiment
+from DGN_Env import para_produce_rl, Experiment
 import logging
 
 import datetime
@@ -18,7 +18,7 @@ from buffer import ReplayBuffer
 from flow.core.params import SumoParams
 ### define some parameters
 import pandas as pd
-import  os
+import os
 import torch.optim as optim
 
 import torch
@@ -36,6 +36,7 @@ def mkdir(path):
     else:
         print(path+'exist')
 
+
 ## define some environment parameters
 exp_tag="dgn_ring"
 build_adj=2
@@ -45,7 +46,7 @@ neighbors=6
 train_test=1 ##define train(1) or test(2)
 num_runs=100
 ## build up settings
-flow_params=para_produce_rl(NUM_AUTOMATED=agent_num)
+flow_params = para_produce_rl(NUM_AUTOMATED=agent_num)
 env = Experiment(flow_params=flow_params).env
 rl_actions=None
 convert_to_csv=True
@@ -207,7 +208,8 @@ for i_episode in range(num_runs):
             action_dict[key]=aset[k]
             k+=1
 
-        next_state, reward, done, _ = env.step(action_dict)
+        speed_limit = 20
+        next_state, reward, done, _ = env.step(action_dict, speed_limit)
 
         next_adj = Adjacency(env ,neighbors=neighbors)
 
