@@ -33,7 +33,7 @@ class AttModel(nn.Module):
 		att = F.softmax(torch.mul(torch.bmm(q,k), mask) - 9e15*(1 - mask),dim=2)
 		# print(att.size())
 		# print(v.size())
-		v=v.expand([att.size()[0],6,128])
+		v=v.expand([att.size()[0],3,128])
 		out = torch.bmm(att,v)
 		#out = torch.add(out,v)
 		out = F.relu(self.fcout(out))

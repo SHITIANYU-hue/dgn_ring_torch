@@ -27,6 +27,9 @@ import torch.optim as optim
 import torch.autograd as autograd 
 import torch.nn.functional as F
 
+from ES_VSL import ES_VSL, SGD
+import multiprocessing as mp
+
 
 from config import *
 def mkdir(path):
@@ -41,8 +44,8 @@ def mkdir(path):
 exp_tag="dgn_ring"
 build_adj=2
 mkdir('{}_results'.format(exp_tag))
-agent_num=6
-neighbors=6
+agent_num=3
+neighbors=3
 train_test=1 ##define train(1) or test(2)
 num_runs=100
 ## build up settings
@@ -56,9 +59,11 @@ sim_params = SumoParams(sim_step=0.1, render=False, emission_path='./{0}_emissio
 num_steps = env.env_params.horizon
 
 
+
 n_ant = agent_num
 observation_space = 3
 n_actions = 1
+
 
 buff = ReplayBuffer(capacity)
 model = DGN(n_ant,observation_space,hidden_dim,n_actions)
@@ -184,20 +189,27 @@ for i_episode in range(num_runs):
     aset = []
     vec = np.zeros((1, neighbors))
     vec[0][0] = 1
-    score=0
-    for  j in range(num_steps):
+    score=0 
+
+    # Evolution Strategy
+    t0 = time.time()
+    # net_params, kid_rewards = ESvsl.train(net_shapes, net_params, VSL_optimizer, utility, pool)
+    noise_seed = np.random.randint(0, 2 ** 32 - 1, size=self.n_kid, dtype=np.uint32).repeat(2)    # mirrored sampling
+
+
+    for j in range(num_steps):
         # manager actions
         # convert state into values
         state_ = np.array(list(obs.values())).reshape(agent_num,-1).tolist()
 
         adj = Adjacency(env ,neighbors=neighbors)
 
-        state_=torch.tensor(np.asarray([state_]),dtype=torch.float) 
+        state_= torch.tensor(np.asarray([state_]),dtype=torch.float) 
         adj_= torch.tensor(np.asarray(adj),dtype=torch.float)
         
         q = model(state_, adj_)[0]
         for i in range(n_ant):
-            if np.random.rand() < epsilon:
+            if np.random.rand() > epsilon:
                 a = np.random.randint(n_actions)
             else:
                 a = q[i].argmax().item()
@@ -247,6 +259,7 @@ for i_episode in range(num_runs):
 
 
     if i_episode < 5:
+        print("episode is %d " % i_episode, "num_experience is %d\n" % buff.num_experiences)
         continue
 
     for e in range(n_epoch):
