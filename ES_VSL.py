@@ -21,7 +21,7 @@ CONFIG = [
          n_feature=2, n_action=3, continuous_a=[False], ep_max_step=200, eval_threshold=-120),
     dict(game="Pendulum-v0",
          n_feature=3, n_action=1, continuous_a=[True, 2.], ep_max_step=200, eval_threshold=-180)
-][2]    # choose your game
+][1]    # choose your game
 
 
 class SGD(object):                      # optimizer with momentum
@@ -50,7 +50,7 @@ class ES_VSL():
     def __init__(self, observation_space, n_actions, N_KID, LR, SIGMA):
         self.obs_space = observation_space
         self.n_actions = n_actions
-        self.continuous_a = CONFIG['continuous_a']
+        self.continuous_a = [False] # [False] for discrete speed limit, [True, coefficient] for continuous speed limit
         self.ep_max_step = 200
         self.n_kid = N_KID 
         self.lr = LR
@@ -69,7 +69,7 @@ class ES_VSL():
         return [s0, s1, s2], np.concatenate((p0, p1, p2))
 
 
-    def get_reward(self, shapes, params, env, seedAndid=None, ):
+    def get_reward(self, shapes, params, env, seedAndid=None, ): # NOT USING THIS
         # perturb parameters using seed
         if seedAndid is not None:
             seed, k_id = seedAndid
@@ -104,12 +104,13 @@ class ES_VSL():
         x = np.tanh(x.dot(params[0]) + params[1])
         x = np.tanh(x.dot(params[2]) + params[3])
         x = x.dot(params[4]) + params[5]
-        if not self.continuous_a[0]: return np.argmax(x, axis=1)[0]      # for discrete action
+        # print("x shape", x.shape)
+        if not self.continuous_a[0]: return np.argmax(x, axis=2)[0]      # for discrete action x.shape: (1,3,7)
         else: return self.continuous_a[1] * np.tanh(x)[0]                # for continuous action
 
 
 
-    def train(self, net_shapes, net_params, optimizer, utility, pool):
+    def train(self, net_shapes, net_params, optimizer, utility, pool):  # NOT USING THIS
         # pass seed instead whole noise matrix to parallel will save your time
         noise_seed = np.random.randint(0, 2 ** 32 - 1, size=self.n_kid, dtype=np.uint32).repeat(2)    # mirrored sampling
 

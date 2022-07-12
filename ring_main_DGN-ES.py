@@ -94,7 +94,7 @@ reg_loss=0
 results=[]
 scores=[]
 losses=[]
-ES_rewards=[]
+
 
 ## save simulation videos
 def render(render_mode='sumo_gui'):
@@ -191,25 +191,44 @@ def calculate_car_flow(env):
     while True:
         endPos = env.k.vehicle.get_x_by_id(vel)
         if endPos == startPos: break
-    endTime - time.time()
+    endTime = time.time()
 
     car_flow = len(env.k.vehicle.get_ids()) / (endTime - startTime) # what is the coefficient ? Need I do the normalization ?
     
     return car_flow
 
+def calculate_aver_speed(env):
+    # calculate the car flow
+    aver_speed = 0
+    for veh_id in env.k.vehicle.get_ids():
+        aver_speed += env.k.vehicle.get_speed(veh_id)
+    
+    aver_speed /= len(env.k.vehicle.get_ids())
+    print("aver_speed : ",aver_speed)
+    return aver_speed
+
+def params_reshape(shapes, params):     # reshape to be a matrix
+        p, start = [], 0
+        for i, shape in enumerate(shapes):  # flat params to matrix
+            n_w, n_b = shape[0] * shape[1], shape[1]
+            p = p + [params[start: start + n_w].reshape(shape),
+                    params[start + n_w: start + n_w + n_b].reshape((1, shape[1]))]
+            start += n_w + n_b
+        return p
 
 # Evolution Strategy Vehicle Speed Limit
-N_KID = 10
+N_KID = 2
 LR = .05                    # learning rate
 SIGMA = .05                 # mutation strength or step size
 N_CORE = mp.cpu_count() - 1
+SPEED_LIMITS = np.array([2, 5, 7, 10, 12, 15, 17, 20])
 # utility instead reward for update parameters (rank transformation)
 base = N_KID * 2    # *2 for mirrored sampling
 rank = np.arange(1, base + 1)
 util_ = np.maximum(0, np.log(base / 2 + 1) - np.log(rank))
 utility = util_ / util_.sum() - 1 / base
 
-ESvsl = ES_VSL(observation_space, 1, N_KID, LR, SIGMA)
+ESvsl = ES_VSL(observation_space, len(SPEED_LIMITS), N_KID, LR, SIGMA)
 net_shapes, net_params = ESvsl.build_net()
 VSL_optimizer = SGD(net_params, learning_rate=0.05)
 pool = mp.Pool(processes=N_CORE)
@@ -227,18 +246,26 @@ for i_episode in range(num_runs):
     vec[0][0] = 1
     score=0 
 
+    ES_rewards=[]   # save the reward of VSL network
+
     # Evolution Strategy
     t0 = time.time()
-    noise_seed = np.random.randint(0, 2 ** 32 - 1, size=self.n_kid, dtype=np.uint32).repeat(2)    # mirrored sampling
-    for k_id in range(self.n_kid*2):
+    noise_seed = np.random.randint(0, 2 ** 32 - 1, size=N_KID, dtype=np.uint32).repeat(2)    # mirrored sampling
+    for k_id in range(N_KID*2):
+        if i_episode % 10 != 0 and k_id != N_KID*2 -1:  # refresh the speed limit every 10 episode
+            continue                                    # but we still need to run DQN in the last loop (N_KID*2-1)
+        print("k_id is: ", k_id)
         params = net_params
         seed = noise_seed[k_id]
         np.random.seed(seed)
-        params += sign(k_id) * self.sigma * np.random.randn(params.size)
-
-        p = params_reshape(shapes, params)
+        params += sign(k_id) * SIGMA * np.random.randn(params.size)
+        p = params_reshape(net_shapes, net_params)  # convert the flatten to matrix
         
-        speed_limit = ESvsl.get_action(p, veh_state)
+        
+        veh_state = np.array(list(obs.values())).reshape(agent_num,-1)
+        # print("veh_state : ", veh_state.shape)
+        speed_limit = SPEED_LIMITS[ESvsl.get_action(p, veh_state)]
+        print("speed_limit get action : ", speed_limit)
         for j in range(num_steps):
             # manager actions
             # convert state into values
@@ -263,8 +290,10 @@ for i_episode in range(num_runs):
                 action_dict[key]=aset[k]
                 k+=1
 
-            speed_limit = 20
-            next_state, reward, done, _ = env.step(action_dict, speed_limit)
+            if i_episode % 10 == 0:             # refresh the speed_limit every 10 episode
+                speed_limit_ = speed_limit
+            
+            next_state, reward, done, _ = env.step(action_dict, speed_limit_)
 
             next_adj = Adjacency(env ,neighbors=neighbors)
 
@@ -287,28 +316,29 @@ for i_episode in range(num_runs):
             score += sum(list(reward.values()))
 
         # calculate the car flow
-        car_flow = calculate_car_flow(env)
+        aver_speed = calculate_aver_speed(env)
         
-        ES_rewards.append(car_flow)
+        ES_rewards.append(aver_speed)
 
-    ES_rewards = np.array(ES_rewards)
-    kids_rank = np.argsort(ES_rewards)[::-1]               # rank kid id by reward
+    if i_episode % 10 == 0:                                   # train the VSL network every 10 episode
+        ES_rewards = np.array(ES_rewards)
+        kids_rank = np.argsort(ES_rewards)[::-1]               # rank kid id by reward
 
-    
-    cumulative_update = np.zeros_like(net_params)       # initialize update values
-    for ui, k_id in enumerate(kids_rank):
-        np.random.seed(noise_seed[k_id])                # reconstruct noise using seed
-        cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size)
+        
+        cumulative_update = np.zeros_like(net_params)       # initialize update values
+        for ui, k_id in enumerate(kids_rank):
+            np.random.seed(noise_seed[k_id])                # reconstruct noise using seed
+            cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size)
 
-    gradients = VSL_optimizer.get_gradients(cumulative_update/(2*N_KID*SIGMA))
+        gradients = VSL_optimizer.get_gradients(cumulative_update/(2*N_KID*SIGMA))
 
-    net_params += gradients
-    kid_rewards = rewards
-    print(
-        'Gen: ', i_episode,
-        #'| Net_R: %.1f' % mar,
-        '| Kid_avg_R: %.1f' % kid_rewards.mean(),
-        '| Gen_T: %.2f' % (time.time() - t0),)
+        net_params += gradients
+        kid_rewards = ES_rewards
+        print(
+            'Gen: ', i_episode,
+            #'| Net_R: %.1f' % mar,
+            '| Kid_avg_R: %.1f' % kid_rewards.mean(),
+            '| Gen_T: %.2f' % (time.time() - t0),)
 
 
     scores.append(score/num_steps)
@@ -326,7 +356,7 @@ for i_episode in range(num_runs):
 
 
     if i_episode < 5:
-        print("episode is %d " % i_episode, "num_experience is %d\n" % buff.num_experiences)
+        # print("episode is %d " % i_episode, "num_experience is %d\n" % buff.num_experiences)
         continue
 
     

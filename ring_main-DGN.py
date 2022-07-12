@@ -179,6 +179,17 @@ if build_adj==3:
         return adj
 
 
+
+def calculate_car_flow(env):
+    # calculate the car flow
+    aver_speed = 0
+    for veh_id in env.k.vehicle.get_ids():
+        aver_speed += env.k.vehicle.get_speed(veh_id)
+    
+    aver_speed /= len(env.k.vehicle.get_ids())
+    print("aver_speed : ",aver_speed)
+    return aver_speed
+
 for i_episode in range(num_runs):
     # logging.info("Iter #" + str(i))
     print('episode is:',i_episode)
@@ -191,10 +202,6 @@ for i_episode in range(num_runs):
     vec[0][0] = 1
     score=0 
 
-    # Evolution Strategy
-    t0 = time.time()
-    # net_params, kid_rewards = ESvsl.train(net_shapes, net_params, VSL_optimizer, utility, pool)
-    noise_seed = np.random.randint(0, 2 ** 32 - 1, size=self.n_kid, dtype=np.uint32).repeat(2)    # mirrored sampling
 
 
     for j in range(num_steps):
@@ -244,6 +251,8 @@ for i_episode in range(num_runs):
         
         score += sum(list(reward.values()))
         
+    aver_speed = calculate_car_flow(env)
+    
     scores.append(score/num_steps)
 
 
