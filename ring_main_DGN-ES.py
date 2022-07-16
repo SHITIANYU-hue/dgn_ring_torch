@@ -217,11 +217,14 @@ def params_reshape(shapes, params):     # reshape to be a matrix
         return p
 
 # Evolution Strategy Vehicle Speed Limit
-N_KID = 2
+N_KID = 1
 LR = .05                    # learning rate
 SIGMA = .05                 # mutation strength or step size
 N_CORE = mp.cpu_count() - 1
-SPEED_LIMITS = np.array([2, 5, 7, 10, 12, 15, 17, 20])
+ES_TOTAL_SPL = []
+ES_TOTAL_SCORES = []
+REFRESH_PERIOD = 10
+SPEED_LIMITS = np.array([3, 4, 5, 6, 7, 8])
 # utility instead reward for update parameters (rank transformation)
 base = N_KID * 2    # *2 for mirrored sampling
 rank = np.arange(1, base + 1)
@@ -252,7 +255,7 @@ for i_episode in range(num_runs):
     t0 = time.time()
     noise_seed = np.random.randint(0, 2 ** 32 - 1, size=N_KID, dtype=np.uint32).repeat(2)    # mirrored sampling
     for k_id in range(N_KID*2):
-        if i_episode % 10 != 0 and k_id != N_KID*2 -1:  # refresh the speed limit every 10 episode
+        if i_episode % REFRESH_PERIOD != 0 and k_id != N_KID*2 -1:  # refresh the speed limit every 10 episode
             continue                                    # but we still need to run DQN in the last loop (N_KID*2-1)
         print("k_id is: ", k_id)
         params = net_params
@@ -265,6 +268,7 @@ for i_episode in range(num_runs):
         veh_state = np.array(list(obs.values())).reshape(agent_num,-1)
         # print("veh_state : ", veh_state.shape)
         speed_limit = SPEED_LIMITS[ESvsl.get_action(p, veh_state)]
+        ES_TOTAL_SPL.append(speed_limit)
         print("speed_limit get action : ", speed_limit)
         for j in range(num_steps):
             # manager actions
@@ -290,10 +294,11 @@ for i_episode in range(num_runs):
                 action_dict[key]=aset[k]
                 k+=1
 
-            if i_episode % 10 == 0:             # refresh the speed_limit every 10 episode
+            if i_episode % REFRESH_PERIOD == 0:             # refresh the speed_limit every 10 episode
                 speed_limit_ = speed_limit
             
-            next_state, reward, done, _ = env.step(action_dict, speed_limit_)
+            
+            next_state, reward, done, _ = env.step(action_dict, [5,5,5])
 
             next_adj = Adjacency(env ,neighbors=neighbors)
 
@@ -319,9 +324,14 @@ for i_episode in range(num_runs):
         aver_speed = calculate_aver_speed(env)
         
         ES_rewards.append(aver_speed)
+        outflow = env.k.vehicle.get_outflow_rate(500)
+        arrive = env.k.vehicle.get_arrived_ids()
+        print("outflow : ", outflow)
+        print("len of arrive id : ", len(arrive))
 
-    if i_episode % 10 == 0:                                   # train the VSL network every 10 episode
-        ES_rewards = np.array(ES_rewards)
+    ES_rewards = np.array(ES_rewards)
+    if i_episode % REFRESH_PERIOD == 0:                                   # train the VSL network every 10 episode
+
         kids_rank = np.argsort(ES_rewards)[::-1]               # rank kid id by reward
 
         
@@ -340,11 +350,14 @@ for i_episode in range(num_runs):
             '| Kid_avg_R: %.1f' % kid_rewards.mean(),
             '| Gen_T: %.2f' % (time.time() - t0),)
 
+    ES_TOTAL_SCORES.append(ES_rewards.mean())
 
     scores.append(score/num_steps)
 
 
     np.save('scores.npy',scores)
+    np.save('ES_spped_limit.npy', ES_TOTAL_SPL)
+    np.save('ES_Total_scores.npy', ES_TOTAL_SCORES)
 
          ## calculate individual reward
         # for k in range(len(rewards)):

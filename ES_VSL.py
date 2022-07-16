@@ -14,14 +14,14 @@ N_GENERATION = 5000         # training step
 LR = .05                    # learning rate
 SIGMA = .05                 # mutation strength or step size
 N_CORE = mp.cpu_count()-1
-CONFIG = [
-    dict(game="CartPole-v0",
-         n_feature=4, n_action=2, continuous_a=[False], ep_max_step=700, eval_threshold=500),
-    dict(game="MountainCar-v0",
-         n_feature=2, n_action=3, continuous_a=[False], ep_max_step=200, eval_threshold=-120),
-    dict(game="Pendulum-v0",
-         n_feature=3, n_action=1, continuous_a=[True, 2.], ep_max_step=200, eval_threshold=-180)
-][1]    # choose your game
+# CONFIG = [
+#     dict(game="CartPole-v0",
+#          n_feature=4, n_action=2, continuous_a=[False], ep_max_step=700, eval_threshold=500),
+#     dict(game="MountainCar-v0",
+#          n_feature=2, n_action=3, continuous_a=[False], ep_max_step=200, eval_threshold=-120),
+#     dict(game="Pendulum-v0",
+#          n_feature=3, n_action=1, continuous_a=[True, 2.], ep_max_step=200, eval_threshold=-180)
+# ][1]    # choose your game
 
 
 class SGD(object):                      # optimizer with momentum
@@ -69,34 +69,34 @@ class ES_VSL():
         return [s0, s1, s2], np.concatenate((p0, p1, p2))
 
 
-    def get_reward(self, shapes, params, env, seedAndid=None, ): # NOT USING THIS
-        # perturb parameters using seed
-        if seedAndid is not None:
-            seed, k_id = seedAndid
-            np.random.seed(seed)
-            params += sign(k_id) * self.sigma * np.random.randn(params.size)
+    # def get_reward(self, shapes, params, env, seedAndid=None, ): # NOT USING THIS
+    #     # perturb parameters using seed
+    #     if seedAndid is not None:
+    #         seed, k_id = seedAndid
+    #         np.random.seed(seed)
+    #         params += sign(k_id) * self.sigma * np.random.randn(params.size)
 
-        p = params_reshape(shapes, params)
-        # run episode
-        # s = env.reset()
+    #     p = params_reshape(shapes, params)
+    #     # run episode
+    #     # s = env.reset()
 
-        vel = env.k.vehicle.get_rl_ids()[0]
-        startPos = env.k.vehicle.get_x_by_id(vel)
-        startTime = time.time()
-        while True:
-            endPos = env.k.vehicle.get_x_by_id(vel)
-            if endPos == startPos: break
-        endTime = time.time()
+    #     vel = env.k.vehicle.get_rl_ids()[0]
+    #     startPos = env.k.vehicle.get_x_by_id(vel)
+    #     startTime = time.time()
+    #     while True:
+    #         endPos = env.k.vehicle.get_x_by_id(vel)
+    #         if endPos == startPos: break
+    #     endTime = time.time()
 
-        car_flow = len(env.k.vehicle.get_ids()) / (endTime - startTime)
+    #     car_flow = len(env.k.vehicle.get_ids()) / (endTime - startTime)
 
-        ep_r = car_flow   # what is the coefficient ? Need I do the normalization ?
-        # for step in range(self.ep_max_step):
-        #     a = self.get_action(p, s)
-        #     s, r, done, _ = env.step(a)
-        #     ep_r += r
-        #     if done: break
-        return ep_r
+    #     ep_r = car_flow   # what is the coefficient ? Need I do the normalization ?
+    #     # for step in range(self.ep_max_step):
+    #     #     a = self.get_action(p, s)
+    #     #     s, r, done, _ = env.step(a)
+    #     #     ep_r += r
+    #     #     if done: break
+    #     return ep_r
 
 
     def get_action(self, params, x):
@@ -110,70 +110,70 @@ class ES_VSL():
 
 
 
-    def train(self, net_shapes, net_params, optimizer, utility, pool):  # NOT USING THIS
-        # pass seed instead whole noise matrix to parallel will save your time
-        noise_seed = np.random.randint(0, 2 ** 32 - 1, size=self.n_kid, dtype=np.uint32).repeat(2)    # mirrored sampling
+    # def train(self, net_shapes, net_params, optimizer, utility, pool):  # NOT USING THIS
+    #     # pass seed instead whole noise matrix to parallel will save your time
+    #     noise_seed = np.random.randint(0, 2 ** 32 - 1, size=self.n_kid, dtype=np.uint32).repeat(2)    # mirrored sampling
 
-        # distribute training in parallel
-        jobs = [pool.apply_async(self.get_reward, (net_shapes, net_params, env,
-                                          [noise_seed[k_id], k_id], )) for k_id in range(self.n_kid*2)]
+    #     # distribute training in parallel
+    #     jobs = [pool.apply_async(self.get_reward, (net_shapes, net_params, env,
+    #                                       [noise_seed[k_id], k_id], )) for k_id in range(self.n_kid*2)]
 
-        rewards = np.array([j.get() for j in jobs])
+    #     rewards = np.array([j.get() for j in jobs])
 
-        # rewards = []
-        # for k_id in range(self.n_kid*2):
-        #     reward = self.get_reward(net_shapes, net_params, env, noise_seed[k_id], k_id)
-        #     rewards.append(reward)
+    #     # rewards = []
+    #     # for k_id in range(self.n_kid*2):
+    #     #     reward = self.get_reward(net_shapes, net_params, env, noise_seed[k_id], k_id)
+    #     #     rewards.append(reward)
 
-        rewards = np.array(rewards)
-        kids_rank = np.argsort(rewards)[::-1]               # rank kid id by reward
+    #     rewards = np.array(rewards)
+    #     kids_rank = np.argsort(rewards)[::-1]               # rank kid id by reward
 
-        cumulative_update = np.zeros_like(net_params)       # initialize update values
-        for ui, k_id in enumerate(kids_rank):
-            np.random.seed(noise_seed[k_id])                # reconstruct noise using seed
-            cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size)
+    #     cumulative_update = np.zeros_like(net_params)       # initialize update values
+    #     for ui, k_id in enumerate(kids_rank):
+    #         np.random.seed(noise_seed[k_id])                # reconstruct noise using seed
+    #         cumulative_update += utility[ui] * sign(k_id) * np.random.randn(net_params.size)
 
-        gradients = optimizer.get_gradients(cumulative_update/(2*self.n_kid*self.sigma))
-        return net_params + gradients, rewards
+    #     gradients = optimizer.get_gradients(cumulative_update/(2*self.n_kid*self.sigma))
+    #     return net_params + gradients, rewards
 
 
-if __name__ == "__main__":
-    # utility instead reward for update parameters (rank transformation)
-    base = N_KID * 2    # *2 for mirrored sampling
-    rank = np.arange(1, base + 1)
-    util_ = np.maximum(0, np.log(base / 2 + 1) - np.log(rank))
-    utility = util_ / util_.sum() - 1 / base
+# if __name__ == "__main__":
+#     # utility instead reward for update parameters (rank transformation)
+#     base = N_KID * 2    # *2 for mirrored sampling
+#     rank = np.arange(1, base + 1)
+#     util_ = np.maximum(0, np.log(base / 2 + 1) - np.log(rank))
+#     utility = util_ / util_.sum() - 1 / base
 
-    # initialization
-    ESvsl = ES_VSL(CONFIG['n_feature'], CONFIG['n_action'], N_KID, LR, SIGMA);
+#     # initialization
+#     ESvsl = ES_VSL(CONFIG['n_feature'], CONFIG['n_action'], N_KID, LR, SIGMA);
 
-    # training
-    net_shapes, net_params = ESvsl.build_net()
-    env = gym.make(CONFIG['game']).unwrapped
-    optimizer = SGD(net_params, LR)
-    pool = mp.Pool(processes=N_CORE)
-    mar = None      # moving average reward
-    for g in range(N_GENERATION):
-        t0 = time.time()
-        net_params, kid_rewards = ESvsl.train(net_shapes, net_params, optimizer, utility, pool)
+#     # training
+#     net_shapes, net_params = ESvsl.build_net()
+#     env = gym.make(CONFIG['game']).unwrapped
+#     optimizer = SGD(net_params, LR)
+#     pool = mp.Pool(processes=N_CORE)
+#     mar = None      # moving average reward
+#     for g in range(N_GENERATION):
+#         t0 = time.time()
+#         net_params, kid_rewards = ESvsl.train(net_shapes, net_params, optimizer, utility, pool)
 
-        # test trained net without noise
-        net_r = ESvsl.get_reward(net_shapes, net_params, env, None,)
-        mar = net_r if mar is None else 0.9 * mar + 0.1 * net_r       # moving average reward
-        print(
-            'Gen: ', g,
-            '| Net_R: %.1f' % mar,
-            '| Kid_avg_R: %.1f' % kid_rewards.mean(),
-            '| Gen_T: %.2f' % (time.time() - t0),)
-        if mar >= CONFIG['eval_threshold']: break
+#         # test trained net without noise
+#         net_r = ESvsl.get_reward(net_shapes, net_params, env, None,)
+#         mar = net_r if mar is None else 0.9 * mar + 0.1 * net_r       # moving average reward
+#         print(
+#             'Gen: ', g,
+#             '| Net_R: %.1f' % mar,
+#             '| Kid_avg_R: %.1f' % kid_rewards.mean(),
+#             '| Gen_T: %.2f' % (time.time() - t0),)
+#         if mar >= CONFIG['eval_threshold']: break
 
-    # test
-    print("\nTESTING....")
-    p = params_reshape(net_shapes, net_params)
-    while True:
-        s = env.reset()
-        for _ in range(CONFIG['ep_max_step']):
-            env.render()
-            a = ESvsl.get_action(p, s)
-            s, _, done, _ = env.step(a)
-            if done: break
+#     # test
+#     print("\nTESTING....")
+#     p = params_reshape(net_shapes, net_params)
+#     while True:
+#         s = env.reset()
+#         for _ in range(CONFIG['ep_max_step']):
+#             env.render()
+#             a = ESvsl.get_action(p, s)
+#             s, _, done, _ = env.step(a)
+#             if done: break

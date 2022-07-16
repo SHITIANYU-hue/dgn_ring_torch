@@ -180,7 +180,7 @@ if build_adj==3:
 
 
 
-def calculate_car_flow(env):
+def calculate_aver_speed(env):
     # calculate the car flow
     aver_speed = 0
     for veh_id in env.k.vehicle.get_ids():
