@@ -44,12 +44,12 @@ def mkdir(path):
 exp_tag="dgn_ring"
 build_adj=2
 mkdir('{}_results'.format(exp_tag))
-agent_num=3
-neighbors=3
+agent_num=6
+neighbors=6
 train_test=1 ##define train(1) or test(2)
 num_runs=100
 ## build up settings
-flow_params = para_produce_rl(NUM_AUTOMATED=agent_num)
+flow_params = para_produce_rl(NUM_AUTOMATED=agent_num) # NUM_AUTOMATED=agent_num
 env = Experiment(flow_params=flow_params).env
 rl_actions=None
 convert_to_csv=True
@@ -62,7 +62,7 @@ num_steps = env.env_params.horizon
 
 n_ant = agent_num
 observation_space = 3
-n_actions = 1
+n_actions = 6
 
 
 buff = ReplayBuffer(capacity)
@@ -76,6 +76,7 @@ O = np.ones((batch_size,n_ant,observation_space))
 Next_O = np.ones((batch_size,n_ant,observation_space))
 Matrix = np.ones((batch_size,n_ant,n_ant))
 Next_Matrix = np.ones((batch_size,n_ant,n_ant))
+
 
 save_interal=20
 rets = []
@@ -142,16 +143,21 @@ if build_adj==2:
     # method2: sort for the nearest position vehicle
     def Adjacency(env ,neighbors=2):
         adj = []
-        x_pos = np.array([env.k.vehicle.get_x_by_id(veh_id) for veh_id in env.k.vehicle.get_rl_ids() ])
-        headways = np.zeros([len(env.k.vehicle.get_rl_ids()),len(env.k.vehicle.get_rl_ids())])
-        for d in range(len(env.k.vehicle.get_rl_ids())):
+        x_pos = np.array([env.k.vehicle.get_x_by_id(veh_id) for veh_id in env.k.vehicle.get_rl_ids()])
+        exist_agent_num = len(x_pos)
+            
+        while len(x_pos) < agent_num:               # rl vehs reach the end, we should maintain the dim of array
+            x_pos = np.append(x_pos, 0)
+
+        headways = np.zeros([len(x_pos), len(x_pos)])
+        for d in range(len(x_pos)):
             headways[d,:] = abs(x_pos-x_pos[d])
         
         orders = np.argsort(headways)
-        for rl_id1 in env.k.vehicle.get_rl_ids():
-            l = np.zeros([neighbors,len(env.k.vehicle.get_rl_ids())])
-            j=0
-            for k in range(neighbors):
+
+        for _ in range(len(x_pos)):
+            l = np.zeros([neighbors,len(x_pos)])
+            for k in range(neighbors):   # original range(neighbours)
                 # modify this condition to define the adjacency matrix
                 l[k,orders[k]]=1
 
@@ -224,7 +230,8 @@ N_CORE = mp.cpu_count() - 1
 ES_TOTAL_SPL = []
 ES_TOTAL_SCORES = []
 REFRESH_PERIOD = 10
-SPEED_LIMITS = np.array([3, 4, 5, 6, 7, 8])
+#SPEED_LIMITS = np.array([3, 4, 5, 6, 7, 8])
+SPEED_LIMITS = np.array([5, 10, 12, 15, 17, 20])
 # utility instead reward for update parameters (rank transformation)
 base = N_KID * 2    # *2 for mirrored sampling
 rank = np.arange(1, base + 1)
@@ -243,7 +250,7 @@ for i_episode in range(num_runs):
     ret = 0
     ret_list = []
     obs = env.reset()
-
+    
     aset = []
     vec = np.zeros((1, neighbors))
     vec[0][0] = 1
@@ -266,7 +273,7 @@ for i_episode in range(num_runs):
         
         
         veh_state = np.array(list(obs.values())).reshape(agent_num,-1)
-        # print("veh_state : ", veh_state.shape)
+        print("veh_state : ", veh_state.shape)
         speed_limit = SPEED_LIMITS[ESvsl.get_action(p, veh_state)]
         ES_TOTAL_SPL.append(speed_limit)
         print("speed_limit get action : ", speed_limit)
@@ -278,38 +285,42 @@ for i_episode in range(num_runs):
             adj = Adjacency(env ,neighbors=neighbors)
 
             state_= torch.tensor(np.asarray([state_]),dtype=torch.float) 
+            if j == num_steps / 2: 
+                print(state_)
             adj_= torch.tensor(np.asarray(adj),dtype=torch.float)
-            
             q = model(state_, adj_)[0]
             for i in range(n_ant):
-                if np.random.rand() > epsilon:
-                    a = np.random.randint(n_actions)
-                else:
-                    a = q[i].argmax().item()
+                # if np.random.rand() > epsilon:
+                #     a = 3*np.random.randn(n_actions)
+                # else:
+                a = q[i].argmax().item()
+                print('qi',q[i])
+                action_lists = [0, 0.1, 0.15, 0.2, 0.25, 0.3]
+                a = action_lists[a]
+                print("a : ", a)
                 aset.append(a)
 
             action_dict = {}
             k=0
-            for key,value in obs.items():
-                action_dict[key]=aset[k]
+            for key, value in obs.items():       
+                action_dict[key]=aset[k]         
                 k+=1
 
             if i_episode % REFRESH_PERIOD == 0:             # refresh the speed_limit every 10 episode
                 speed_limit_ = speed_limit
-            
-            
-            next_state, reward, done, _ = env.step(action_dict, [5,5,5])
-
+            # print(action_dict)
+            next_state, reward, done, _ = env.step(action_dict, speed_limit_)
+            print('reward',reward)
             next_adj = Adjacency(env ,neighbors=neighbors)
+            print('next_state shape', len(next_state))
+            print("action_dict ", len(action_dict))
+            print("obs ", len(obs))
 
-
+            while len(next_state) < agent_num:
+                next_state['e{}k{}s{}'.format(i_episode, k_id, j)] = np.array([0,0,0])
+            
             next_state_ = np.array(list(next_state.values())).reshape(agent_num,-1).tolist()
             done_=np.array(list(done.values())).reshape(1,-1).tolist()
-
-            for i in range(len(done_)):
-                if done_!=False:
-                    done_=1
-                    break
 
 
             reward_ = np.array(list(reward.values())).reshape(1,-1).tolist()
@@ -318,11 +329,14 @@ for i_episode in range(num_runs):
             obs = next_state
             # print('reward',reward)
             
+            print("done_", done_)
             score += sum(list(reward.values()))
-
+            for i in range(len(done_)):
+                if done_[0][-1] == True:
+                    done_=1
+                    break
         # calculate the car flow
         aver_speed = calculate_aver_speed(env)
-        
         ES_rewards.append(aver_speed)
         outflow = env.k.vehicle.get_outflow_rate(500)
         arrive = env.k.vehicle.get_arrived_ids()
