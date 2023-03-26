@@ -25,15 +25,14 @@ class AttModel(nn.Module):
 		self.fck = nn.Linear(din, hidden_dim)
 		self.fcq = nn.Linear(din, hidden_dim)
 		self.fcout = nn.Linear(hidden_dim, dout)
+		self.n_node = n_node
 
 	def forward(self, x, mask):
 		v = F.relu(self.fcv(x))
 		q = F.relu(self.fcq(x))
 		k = F.relu(self.fck(x)).permute(0,2,1)
 		att = F.softmax(torch.mul(torch.bmm(q,k), mask) - 9e15*(1 - mask),dim=2)
-		# print(att.size())
-		# print(v.size())
-		v=v.expand([att.size()[0],6,128])
+		v=v.expand([att.size()[0],self.n_node,128])
 		out = torch.bmm(att,v)
 		#out = torch.add(out,v)
 		out = F.relu(self.fcout(out))
@@ -62,6 +61,7 @@ class DGN(nn.Module):
 		h2 = self.att_1(h1, mask)
 		h3 = self.att_2(h2, mask)
 		q = self.q_net(h3)
+		#print(q)
 		return q 
 
 
