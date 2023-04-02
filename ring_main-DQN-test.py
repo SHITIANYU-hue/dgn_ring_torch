@@ -40,7 +40,7 @@ def mkdir(path):
 
 
 # define some environment parameters
-exp_tag = "dqn_ring"
+exp_tag = "idm_ring"
 mkdir('{}_results'.format(exp_tag))
 agent_num =10
 train_test = 1  # define train(1) or test(2)
@@ -52,7 +52,7 @@ rl_actions = None
 convert_to_csv = True
 model_path = "./model/{0}_model.ckpt".format(exp_tag)
 sim_params = SumoParams(sim_step=0.1, render=False)
-num_steps = env.env_params.horizon
+num_steps = 3600
 
 
 n_ant = agent_num
@@ -153,11 +153,23 @@ def calculate_info(env):
     return aver_speed, aver_hdw/env.k.network.length(), average_speeds_bylane
 
 
+def calculate_info_(env):
+    # calculate the car flow
+
+    data={}
+    for veh_id in env.k.vehicle.get_ids():
+        hdw  = env.k.vehicle.get_headway(veh_id)
+        speed = env.k.vehicle.get_speed(veh_id)
+        position = env.k.vehicle.get_position(veh_id)
+        lane_id = env.k.vehicle.get_lane(veh_id)
+        data_={veh_id:[hdw,speed,position,lane_id]}
+        data.update(data_)
+
+    return data
 
 
 
-
-model.load_state_dict(torch.load('/home/changquan/dgn_ring_torch/model_95'))
+model.load_state_dict(torch.load('/home/changquan/dgn_ring_torch/save_model/model_95'))
 model.eval()
 for i_episode in range(num_runs):
     # logging.info("Iter #" + str(i))
@@ -188,7 +200,7 @@ for i_episode in range(num_runs):
         action_dict = {}
         k = 0
         for key, value in obs.items():
-            action_dict[key] = aset[k]
+            action_dict[key] = aset[k]+ 0.5*np.random.uniform(-1,0,1).item()
             k += 1
 
         speed_limit = 20
@@ -215,8 +227,8 @@ for i_episode in range(num_runs):
         score += sum(list(reward.values()))
         avg_speed,avg_hw,speed_by_lane =calculate_info(env)
         speed_by_lanes.append(speed_by_lane)
-        print('speed_by_lane',speed_by_lane)
-        np.save('speed_by_lanes.npy',speed_by_lanes)
+        print('score/speed_by_lane',speed_by_lane)
+        np.save(f'score/speed_by_lanes_{exp_tag}.npy',speed_by_lanes)
     scores.append(score/num_steps)
     print('scores',scores)
 

@@ -42,7 +42,7 @@ def mkdir(path):
 # define some environment parameters
 exp_tag = "dqn_ring"
 mkdir('{}_results'.format(exp_tag))
-agent_num =10
+agent_num =1
 train_test = 1  # define train(1) or test(2)
 num_runs = 100
 # build up settings
@@ -70,7 +70,7 @@ O = np.ones((batch_size, n_ant, observation_space))
 Next_O = np.ones((batch_size, n_ant, observation_space))
 
 
-save_interal = 5
+save_interal = 20
 rets = []
 mean_rets = []
 ret_lists = []
@@ -88,7 +88,7 @@ results = []
 scores = []
 losses = []
 # save simulation videos
-
+modelname='single'
 
 def render(render_mode='sumo_gui'):
     from flow.core.params import SimParams as sim_params
@@ -195,7 +195,7 @@ for i_episode in range(num_runs):
     scores.append(score/num_steps)
     print('scores',scores)
     print('avg speed:',avg_speed,'avg hw:',avg_hw)
-    np.save('scores.npy', scores)
+    np.save(f'scores{modelname}.npy', scores)
 
     # calculate individual reward
     # for k in range(len(rewards)):
@@ -203,7 +203,7 @@ for i_episode in range(num_runs):
     if i_episode % save_interal == 0:
         print(score/2000)
         score = 0
-        torch.save(model.state_dict(), f'model_{i_episode}')
+        torch.save(model.state_dict(), f'/home/changquan/dgn_ring_torch/save_model/model{modelname}_{i_episode}')
 
     if i_episode < 5:
         continue
